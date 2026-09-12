@@ -2,32 +2,36 @@ import { useEffect, useState } from "react";
 import UserRegisterCard from "../components/UserRegisterCard";
 import type { Registrant } from "../libs/Registrant";
 
+const STORAGE_KEY = "marathon-registrants";
+
 export default function DashboardPage() {
-  const [registrations, setRegistrations] = useState<Registrant[]>([]);
-
+  const [registrants, setRegistrants] = useState<Registrant[]>([]);
   useEffect(() => {
-    const data: Registrant[] = JSON.parse(
-      localStorage.getItem("registrations") || "[]"
-    );
-
-    setRegistrations(data);
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      setRegistrants([]);
+      return;
+    }
+    try {
+      setRegistrants(JSON.parse(raw) as Registrant[]);
+    } catch {
+      setRegistrants([]);
+    }
   }, []);
-
   return (
     <div className="container mt-4">
       <h2>Dashboard</h2>
-
-      {registrations.length === 0 ? (
-        <div className="alert alert-info">
-          No registration data.
-        </div>
+      {registrants.length === 0 ? (
+        <p className="text-muted mt-3">ยังไม่มีผู้ลงทะเบียน</p>
       ) : (
-        registrations.map((registrant) => (
-          <UserRegisterCard
-            key={registrant.id}
-            registrant={registrant}
-          />
-        ))
+        <>
+          <p className="text-muted mt-3">
+            ผู้ลงทะเบียนแล้ว ({registrants.length} คน)
+          </p>
+          {registrants.map((registrant) => (
+            <UserRegisterCard key={registrant.id} registrant={registrant} />
+          ))}
+        </>
       )}
     </div>
   );

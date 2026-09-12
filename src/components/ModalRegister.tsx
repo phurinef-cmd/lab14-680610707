@@ -1,6 +1,14 @@
 import { useState } from "react";
 import type { Registrant } from "../libs/Registrant";
 
+type RegisterForm = {
+  fname: string;
+  lname: string;
+  plan: string;
+  gender: string;
+  Items: string[];
+};
+
 //---- แผนการวิ่ง ----
 const plans = [
   { id: "funrun", label: "Fun run 5.5 Km", price: 500 },
@@ -10,234 +18,236 @@ const plans = [
 ];
 
 // ---- สินค้าเสริม ----
-const extraItems = [
+const Items = [
   { id: "bottle", label: "Bottle 🍼", price: 200 },
   { id: "shoes", label: "Shoes 👟", price: 600 },
   { id: "cap", label: "Cap 🧢", price: 400 },
 ];
 
-export default function ModalRegister() {
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [plan, setPlan] = useState("");
-  const [gender, setGender] = useState("");
-  const [extras, setExtras] = useState<string[]>([]);
+export default function ModalRegister({ onClose }: { onClose: () => void }) {
+  const [form, setForm] = useState<RegisterForm>({
+    fname: "",
+    lname: "",
+    plan: "",
+    gender: "",
+    Items: [],
+  });
+
   const [agree, setAgree] = useState(false);
 
-  const selectedPlan = plans.find((item) => item.id === plan);
-  const planPrice = selectedPlan ? selectedPlan.price : 0;
+  const [errors, setErrors] = useState({
+    fname: false,
+    lname: false,
+    plan: false,
+    gender: false,
+    extraItems: false,
+  });
 
-  const extraPrice = extraItems
-    .filter((item) => extras.includes(item.id))
-    .reduce((total, item) => total + item.price, 0);
-
-  const isDiscount = extras.length === extraItems.length;
-  const discount = isDiscount ? extraPrice * 0.2 : 0;
-  const totalPayment = planPrice + extraPrice - discount;
-
-  const handleExtraChange = (id: string, checked: boolean) => {
-    if (checked) {
-      setExtras([...extras, id]);
-    } else {
-      setExtras(extras.filter((item) => item !== id));
-    }
+  const updateForm = (key: keyof RegisterForm, value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setErrors((prev) => ({ ...prev, [key]: false }));
   };
 
-  const handleRegister = () => {
-    if (!firstName || !lastName || !plan || !gender || !agree) {
-      alert("Please complete all information.");
-      return;
-    }
+  const computeTotalPayment = () => {
+    const selectedPlan = plans.find((p) => p.id === form.plan);
 
-    const registration: Registrant = {
-      id: Date.now(),
-      fullName: `${firstName} ${lastName}`,
-      gender,
-      plan,
-      total: totalPayment,
-    };
-
-    const registrations: Registrant[] = JSON.parse(
-      localStorage.getItem("registrations") || "[]"
+    const selectedExtraItems = Items.filter((item) =>
+      form.Items.includes(item.id)
     );
 
-    registrations.push(registration);
+    const subtotal =
+      (selectedPlan ? selectedPlan.price : 0) +
+      selectedExtraItems.reduce((sum, item) => sum + item.price, 0);
+
+    const hasAllItems = selectedExtraItems.length === Items.length;
+    const discount = hasAllItems ? subtotal * 0.2 : 0;
+
+    return subtotal - discount;
+  };
+
+  const registerBtnOnClick = () => {
+    const newErrors = {
+      fname: form.fname === "" || form.fname === form.lname,
+      lname: form.lname === "" || form.fname === form.lname,
+      plan: form.plan === "",
+      gender: form.gender === "",
+      extraItems: false,
+    };
+
+    setErrors(newErrors);
+
+    const hasError = Object.values(newErrors).some((isError) => isError);
+    if (hasError) return;
+
+    const total = computeTotalPayment();
+    const stored = JSON.parse(localStorage.getItem("marathon-registrants") ?? "[]");
+
+    const selectedExtraLabels = Items
+      .filter((item) => form.Items.includes(item.id))
+      .map((item) => item.label);
+
+    const nextRegistrant: Registrant = {
+      id: Date.now(),
+      fullName: `${form.fname} ${form.lname}`.trim(),
+      gender: form.gender,
+      plan: plans.find((p) => p.id === form.plan)?.label ?? form.plan,
+      Items: selectedExtraLabels,
+      total,
+    };
 
     localStorage.setItem(
-      "registrations",
-      JSON.stringify(registrations)
+      "marathon-registrants",
+      JSON.stringify([...stored, nextRegistrant]),
     );
 
     alert(
-      `Registration successful!\nTotal Payment : ${totalPayment.toLocaleString()} THB`
+      `Registration complete. Please pay money for ${total.toLocaleString()} THB.`,
     );
-
-    setFirstName("");
-    setLastName("");
-    setPlan("");
-    setGender("");
-    setExtras([]);
-    setAgree(false);
+    onClose();
   };
 
   return (
-    <div
-      className="modal fade"
-      id="modalregister"
-      data-bs-backdrop="static"
-      data-bs-keyboard="false"
-      tabIndex={-1}
-      aria-labelledby="modalregisterLabel"
-      aria-hidden="true"
-    >
-      <div className="modal-dialog">
-        <div className="modal-content">
-          <div className="modal-header">
-            <h5 className="modal-title">Register CMU Marathon 🏃‍♂️</h5>
-
-            <button
-              type="button"
-              className="btn-close"
-              data-bs-dismiss="modal"
-              aria-label="Close"
-            ></button>
-          </div>
-
-          <div className="modal-body">
-            <div className="d-flex gap-2">
-              <div>
-                <label className="form-label">First name</label>
-
-                <input
-                  className="form-control"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="form-label">Last name</label>
-
-                <input
-                  className="form-control"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                />
-              </div>
+    <>
+      <div className="modal-backdrop fade show" onClick={onClose} />
+      <div
+        className="modal fade show d-block"
+        id="modalregister"
+        data-bs-backdrop="static"
+        data-bs-keyboard="false"
+        tabIndex={-1}
+        aria-labelledby="modalregisterLabel"
+        aria-hidden="true"
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="modal-dialog">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title">Register CMU Marathon 🏃‍♂️</h5>
+              <button type="button" className="btn-close" onClick={onClose}></button>
             </div>
 
-            <div className="mt-2">
-              <label className="form-label">Plan</label>
+            <div className="modal-body">
+              <div className="d-flex gap-2">
+                <div>
+                  <label className="form-label">First name</label>
 
-              <select
-                className="form-select"
-                value={plan}
-                onChange={(e) => setPlan(e.target.value)}
-              >
-                <option value="">Please select..</option>
+                  <input
+                    className={`form-control ${errors.fname ? "is-invalid" : ""}`}
+                    onChange={(e) => updateForm("fname", e.target.value)}
+                    value={form.fname}
+                  />
+                  <div className="invalid-feedback">Invalid first name</div>
+                </div>
+                <div>
+                  <label className="form-label">Last name</label>
+                  <input
+                    className={`form-control ${errors.lname ? "is-invalid" : ""}`}
+                    onChange={(e) => updateForm("lname", e.target.value)}
+                    value={form.lname}
+                  />
+                  <div className="invalid-feedback">Invalid last name</div>
+                </div>
+              </div>
 
-                {plans.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label} ({item.price.toLocaleString()} THB)
-                  </option>
+              <div className="mt-2">
+                <label className="form-label">Plan</label>
+                <select
+                  className={`form-select ${errors.plan ? "is-invalid" : ""}`}
+                  value={form.plan}
+                  onChange={(e) => updateForm("plan", e.target.value)}
+                >
+                  <option value="">Please select..</option>
+                  {plans.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label} ({p.price.toLocaleString()} THB)
+                    </option>
+                  ))}
+                </select>
+                {errors.plan && (
+                  <div className="invalid-feedback d-block">Please select a Plan</div>
+                )}
+              </div>
+
+              <div className="mt-2">
+                <label className="form-label">Gender</label>
+                <div>
+                  <div>
+                    <input
+                      className="me-2 form-check-input"
+                      type="radio"
+                      checked={form.gender === "male"}
+                      onChange={() => updateForm("gender", "male")}
+                    />
+                    Male 👨
+                    <input
+                      className="mx-2 form-check-input"
+                      type="radio"
+                      checked={form.gender === "female"}
+                      onChange={() => updateForm("gender", "female")}
+                    />
+                    Female 👩
+                  </div>
+                  {errors.gender && <div className="text-danger mt-1">Please select gender</div>}
+                </div>
+              </div>
+              {/* Extra Items */}
+              <div className="mt-2">
+                <label className="form-label">Extra Item(s)</label>
+                {Items.map((item) => (
+                  <div key={item.id}>
+                    <input
+                      className="me-2 form-check-input"
+                      type="checkbox"
+                      checked={form.Items.includes(item.id)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setForm((prev) => ({
+                          ...prev,
+                          extraItems: checked
+                            ? [...prev.Items, item.id]
+                            : prev.Items.filter((id) => id !== item.id),
+                        }));
+                      }}
+                    />
+                    <label className="form-check-label">
+                      {item.label} ({item.price.toLocaleString()} THB)
+                    </label>
+                  </div>
                 ))}
-              </select>
-            </div>
+                {form.Items.length === Items.length && (
+                  <span className="text-success d-block">(20% Discounted)</span>
+                )}
+              </div>
 
-            <div className="mt-2">
-              <label className="form-label">Gender</label>
+              <div className="alert alert-primary mt-3" role="alert">
+                Promotion📢 Buy all items to get 20% Discount
+              </div>
 
-              <div>
-                <input
-                  className="me-2 form-check-input"
-                  type="radio"
-                  name="gender"
-                  value="male"
-                  checked={gender === "male"}
-                  onChange={(e) => setGender(e.target.value)}
-                />
-
-                Male 👨
-
-                <input
-                  className="mx-2 form-check-input"
-                  type="radio"
-                  name="gender"
-                  value="female"
-                  checked={gender === "female"}
-                  onChange={(e) => setGender(e.target.value)}
-                />
-
-                Female 👩
+              <div className="mt-3">
+                Total Payment : {computeTotalPayment().toLocaleString()} THB
               </div>
             </div>
 
-            {/* Extra Items */}
-
-            <div>
-              <label className="form-label">Extra Item(s)</label>
-
-              {extraItems.map((item) => (
-                <div key={item.id}>
+            <div className="modal-footer">
+              <div className="form-check">
+                <label>
                   <input
                     className="me-2 form-check-input"
                     type="checkbox"
-                    checked={extras.includes(item.id)}
-                    onChange={(e) =>
-                      handleExtraChange(
-                        item.id,
-                        e.target.checked
-                      )
-                    }
+                    checked={agree}
+                    onChange={() => setAgree((prev) => !prev)}
                   />
-
-                  <label className="form-check-label">
-                    {item.label} ({item.price.toLocaleString()} THB)
-                  </label>
-                </div>
-              ))}
-
-              {/* conditional เมื่อเลือกสินค้าเสริมทั้งหมด ให้แสดง discount */}
-
-              {isDiscount && (
-                <span className="text-success d-block">
-                  (20% Discounted)
-                </span>
-              )}
+                  I agree to the terms and conditions
+                </label>
+              </div>
+              <button className="btn btn-success my-2" onClick={registerBtnOnClick} disabled={!agree}>
+                Register
+              </button>
             </div>
-
-            <div className="alert alert-primary mt-3" role="alert">
-              Promotion📢 Buy all items to get 20% Discount
-            </div>
-
-            <div>
-              Total Payment : {totalPayment.toLocaleString()} THB
-            </div>
-          </div>
-
-          <div className="modal-footer">
-            <div>
-              <input
-                className="me-2 form-check-input"
-                type="checkbox"
-                checked={agree}
-                onChange={(e) => setAgree(e.target.checked)}
-              />
-
-              I agree to the terms and conditions
-            </div>
-
-            <button
-              type="button"
-              className="btn btn-success my-2"
-              disabled={!agree}
-              onClick={handleRegister}
-            >
-              Register
-            </button>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
