@@ -204,7 +204,7 @@ export default function ModalRegister({ onClose }: { onClose: () => void }) {
                         const checked = e.target.checked;
                         setForm((prev) => ({
                           ...prev,
-                          extraItems: checked
+                          Items: checked
                             ? [...prev.Items, item.id]
                             : prev.Items.filter((id) => id !== item.id),
                         }));
